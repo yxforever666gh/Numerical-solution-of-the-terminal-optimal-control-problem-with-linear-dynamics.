@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xelatex \"2号Математическая_теория_оптимальных_процессов.tex\")",
+      "Bash(pdflatex \"2号Математическая_теория_оптимальных_процессов.tex\")",
+      "Bash(\"/d/ProgrammingEnvironment/MiKTeX/miktex/bin/x64/xelatex.exe\" \"2号Математическая_теория_оптимальных_процессов.tex\")",
+      "Bash(unzip -l \"4号Основы_теории_оптимального_управления_2025-12-22-02_44_47.zip\")",
+      "Bash(find \"3号\"* -type f \\\\\\( -name \"*.tex\" -o -name \"*.md\" -o -name \"*.txt\" \\\\\\))",
+      "Bash(python fix_3_tex_batch1.py)"
+    ]
+  }
+}
