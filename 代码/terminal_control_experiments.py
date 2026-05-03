@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from time import perf_counter
 from typing import Callable
 
 import matplotlib.pyplot as plt
@@ -427,9 +428,12 @@ def run_problem1_case(
 ) -> dict[str, float | str | int | bool]:
     options = SolverOptions(method=method)
     residual = problem1_residual(A, B, x0, x_target, T, M, umax, mu)
+    started = perf_counter()
     result = solve_least_squares(residual, q0, options)
+    runtime_seconds = perf_counter() - started
     y, u, _ = simulate_linear(A, B, x0, T, M, result.z, umax, mu)
     terminal_error = float(np.linalg.norm(y[-1] - as_col(x_target)))
+    control_dim = M * np.asarray(B, dtype=float).shape[1]
     result.history.to_csv(RESULTS / f"{name}_history.csv", index=False, encoding="utf-8-sig")
     np.savetxt(RESULTS / f"{name}_state.csv", y, delimiter=",")
     np.savetxt(RESULTS / f"{name}_control.csv", u, delimiter=",")
@@ -449,6 +453,8 @@ def run_problem1_case(
         "terminal_error": terminal_error,
         "z": np.array2string(result.z, precision=6, separator=";"),
         "decision_dim": as_col(q0).size,
+        "direct_decision_dim": control_dim,
+        "runtime_seconds": runtime_seconds,
         "optimizer_success": result.converged,
         "objective_value": 0.5 * terminal_error * terminal_error,
     }
@@ -471,11 +477,14 @@ def run_problem2_case(
 ) -> dict[str, float | str | int | bool]:
     options = SolverOptions(method=method)
     residual = problem2_residual(A, B, x0, T, M, umax, mu, a, C, d)
+    started = perf_counter()
     result = solve_least_squares(residual, lambda0, options)
+    runtime_seconds = perf_counter() - started
     q = -as_col(a) - np.asarray(C, dtype=float).T @ result.z
     y, u, _ = simulate_linear(A, B, x0, T, M, q, umax, mu)
     terminal_residual = float(np.linalg.norm(np.asarray(C, dtype=float) @ y[-1] - as_col(d)))
     terminal_objective = float(as_col(a) @ y[-1])
+    control_dim = M * np.asarray(B, dtype=float).shape[1]
     result.history.to_csv(RESULTS / f"{name}_history.csv", index=False, encoding="utf-8-sig")
     np.savetxt(RESULTS / f"{name}_state.csv", y, delimiter=",")
     np.savetxt(RESULTS / f"{name}_control.csv", u, delimiter=",")
@@ -498,6 +507,8 @@ def run_problem2_case(
         "terminal_objective": terminal_objective,
         "z": np.array2string(result.z, precision=6, separator=";"),
         "decision_dim": as_col(lambda0).size,
+        "direct_decision_dim": control_dim,
+        "runtime_seconds": runtime_seconds,
         "optimizer_success": result.converged,
         "objective_value": terminal_objective,
     }
@@ -513,7 +524,10 @@ def run_direct_problem1_case(
     M: int,
     umax: Array,
 ) -> dict[str, float | str | int | bool]:
+    started = perf_counter()
     result = solve_direct_problem1(A, B, x0, x_target, T, M, umax)
+    runtime_seconds = perf_counter() - started
+    control_dim = M * np.asarray(B, dtype=float).shape[1]
     result.history.to_csv(RESULTS / f"{name}_history.csv", index=False, encoding="utf-8-sig")
     np.savetxt(RESULTS / f"{name}_state.csv", result.y, delimiter=",")
     np.savetxt(RESULTS / f"{name}_control.csv", result.u, delimiter=",")
@@ -532,7 +546,9 @@ def run_direct_problem1_case(
         "grad_norm": result.grad_norm,
         "terminal_error": result.terminal_error,
         "z": "",
-        "decision_dim": M * np.asarray(B, dtype=float).shape[1],
+        "decision_dim": control_dim,
+        "direct_decision_dim": control_dim,
+        "runtime_seconds": runtime_seconds,
         "optimizer_success": result.success,
         "objective_value": result.theta,
     }
@@ -547,6 +563,38 @@ def main() -> None:
         for path in FIGURES.glob(pattern):
             path.unlink()
     summaries: list[dict[str, float | str | int | bool]] = []
+
+    # Case 0: analytically checkable integrator examples.
+    A0 = np.array([[0.0]], dtype=float)
+    B0 = np.array([[1.0]], dtype=float)
+    for target in [0.5, 2.0]:
+        summaries.append(
+            run_problem1_case(
+                name=f"case0_integrator_xt_{safe_label(target)}",
+                A=A0,
+                B=B0,
+                x0=np.array([0.0]),
+                x_target=np.array([target]),
+                T=1.0,
+                M=200,
+                umax=np.array([1.0]),
+                mu=1e-3,
+                q0=np.array([target]),
+                method="gn",
+            )
+        )
+        summaries.append(
+            run_direct_problem1_case(
+                name=f"case0_integrator_direct_xt_{safe_label(target)}",
+                A=A0,
+                B=B0,
+                x0=np.array([0.0]),
+                x_target=np.array([target]),
+                T=1.0,
+                M=200,
+                umax=np.array([1.0]),
+            )
+        )
 
     # Case 1: one-dimensional terminal tracking.
     A1 = np.array([[0.5]], dtype=float)
@@ -659,6 +707,55 @@ def main() -> None:
                 method="gn",
             )
         )
+
+    # Case 5: medium-dimensional linear system.
+    A5 = np.array(
+        [
+            [0.0, 1.0, 0.0, 0.0],
+            [-1.0, -0.2, 0.3, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+            [0.2, 0.0, -1.0, -0.1],
+        ],
+        dtype=float,
+    )
+    B5 = np.array(
+        [
+            [0.0, 0.0],
+            [1.0, 0.0],
+            [0.0, 0.0],
+            [0.0, 1.0],
+        ],
+        dtype=float,
+    )
+    x0_5 = np.array([1.0, 0.0, -0.5, 0.0])
+    x_target_5 = np.array([0.0, 0.0, 0.0, 0.0])
+    summaries.append(
+        run_problem1_case(
+            name="case5_medium4d_gn",
+            A=A5,
+            B=B5,
+            x0=x0_5,
+            x_target=x_target_5,
+            T=3.0,
+            M=200,
+            umax=np.array([1.0, 1.0]),
+            mu=1e-3,
+            q0=np.array([0.0, 0.0, 0.0, 0.0]),
+            method="gn",
+        )
+    )
+    summaries.append(
+        run_direct_problem1_case(
+            name="case5_medium4d_direct",
+            A=A5,
+            B=B5,
+            x0=x0_5,
+            x_target=x_target_5,
+            T=3.0,
+            M=200,
+            umax=np.array([1.0, 1.0]),
+        )
+    )
 
     summary = pd.DataFrame(summaries)
     summary.to_csv(RESULTS / "summary.csv", index=False, encoding="utf-8-sig")
