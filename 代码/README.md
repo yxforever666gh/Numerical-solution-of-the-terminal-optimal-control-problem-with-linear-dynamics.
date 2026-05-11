@@ -1,72 +1,85 @@
-# 具有线性动力学的终端型最优控制数值实验
+# Numerical Experiments for Terminal Optimal Control Problems
 
-本目录给出论文第4章和第5章对应的可复现实验代码。
+This directory contains the reproducible numerical experiments used in Chapters 4 and 5 of the thesis
+*Numerical Solution of Terminal Optimal Control Problems with Linear Dynamics*.
 
-## 运行方式
+The experiments implement low-dimensional shooting-type formulations for terminal optimal control
+problems with linear dynamics, compare them with a direct discretization baseline, and regenerate the
+tables and figures used in the numerical section of the thesis.
 
-依赖环境：
+## Requirements
+
+Install the Python dependencies from the thesis repository root:
 
 ```powershell
 pip install -r .\代码\requirements.txt
 ```
 
-在论文目录下运行：
+The main dependencies are NumPy, SciPy, pandas, and Matplotlib.
+
+## Running the Experiments
+
+Run the script from the thesis repository root:
 
 ```powershell
 python .\代码\terminal_control_experiments.py
 ```
 
-脚本会重新生成 `代码/results` 下的实验文件；如果该目录中已有旧结果，运行后会被覆盖。代码会生成：
+The script regenerates the files under `代码/results`. Existing result files in that directory are
+overwritten.
 
-- `代码/results/summary.csv`：所有算例的汇总表。
-- `代码/results/*_history.csv`：每个算例的迭代历史。
-- `代码/results/*_state.csv`：每个算例的离散状态序列。
-- `代码/results/*_control.csv`：每个算例的离散控制序列。
-- `代码/results/figures/*.png`：残差下降、状态曲线、控制曲线和相轨线图。
+Generated outputs include:
 
-其中 `case2_M_*` 用于二维终端跟踪算例的网格敏感性分析，当前包含
-`M=50,100,200,400,800`；`case2_direct_M_200` 为直接离散优化对比实验，
-其优化变量是每个时间网格上的控制值。
+- `代码/results/summary.csv`: summary table for all test cases.
+- `代码/results/*_history.csv`: iteration history for each test case.
+- `代码/results/*_state.csv`: discrete state trajectory for each test case.
+- `代码/results/*_control.csv`: discrete control sequence for each test case.
+- `代码/results/figures/*.png`: residual histories, state and control plots, and phase portraits.
 
-## 方法对应关系
+The `case2_M_*` outputs are used for the grid-sensitivity study of the two-dimensional terminal
+tracking example and currently include `M=50,100,200,400,800`. The `case2_direct_M_200` output is a
+direct discretization comparison in which the optimization variables are the control values on the time
+grid.
 
-脚本实现了论文中的以下步骤：
+## Method Correspondence
 
-- 显式 Euler 状态递推：
+The script implements the following steps from the thesis:
+
+- Explicit Euler propagation of the state:
 
 ```tex
 y_{m+1}=y_m+\tau(Ay_m+Bu_m)
 ```
 
-- 伴随变量采样：
+- Sampling of the adjoint variable:
 
 ```tex
 \psi_m(q)=e^{A^\top(T-t_m)}q
 ```
 
-- 盒约束控制生成及光滑化：
+- Box-constrained control reconstruction and smoothing:
 
 ```tex
 u_{m,i}^{\mu}=
 \frac{u_{\max,i}\eta_{m,i}}{\sqrt{\eta_{m,i}^2+\mu^2}}
 ```
 
-- 二次终端误差残差：
+- Residual for the quadratic terminal-error problem:
 
 ```tex
 F(q)=q+y_M(q)-x_T
 ```
 
-- 仿射终端约束残差：
+- Residual for the affine terminal-constraint problem:
 
 ```tex
 G(\lambda)=Cy_M(\lambda)-d
 ```
 
-- 有限差分 Jacobian、Armijo 线搜索和高斯--牛顿方向。
+- Finite-difference Jacobians, Armijo line search, and Gauss-Newton directions.
 
-此外，脚本还实现了一个用于对比的直接离散优化方法。该方法仍采用同一显式 Euler
-状态递推，但不使用伴随终端参数，而是直接以
-`u_0,\ldots,u_{M-1}` 为优化变量，并通过 `scipy.optimize.minimize`
-的 `L-BFGS-B` 方法处理盒约束 `|u_m|\leq u_{\max}`。该直接法仅作为数值对比基准，
-不是论文提出的主要算法。
+The script also includes a direct discretization baseline. It uses the same explicit Euler state
+propagation, but optimizes directly over `u_0,\ldots,u_{M-1}` instead of a terminal adjoint parameter.
+The box constraints `|u_m|\leq u_{\max}` are handled with `scipy.optimize.minimize` and the `L-BFGS-B`
+method. This direct method is included only as a numerical comparison baseline; it is not the main
+algorithm proposed in the thesis.
